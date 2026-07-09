@@ -44,7 +44,8 @@
       const line = document.getElementById('statusLine');
       const box = document.getElementById('connectBox');
       if(data.connected){
-        line.innerHTML = 'Slack: <span class="status on">connected</span> — user ' + data.slackUserId + (data.teamName ? ' on ' + data.teamName : '');
+        var who = data.slackUserName || data.slackUserId;
+        line.innerHTML = 'Slack: <span class="status on">connected</span> — ' + who + (data.teamName ? ' on ' + data.teamName : '');
         box.innerHTML = '';
       } else {
         line.innerHTML = 'Slack: <span class="status off">not connected</span>';

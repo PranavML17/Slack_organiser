@@ -25,12 +25,8 @@ async function runTaskSync() {
   const auth = store.getSlackAuth();
   if (!auth) return { skipped: true, reason: 'slack not connected' };
 
-  // A user's self-DM channel id has to be looked up once; conversations.list
-  // with types=im and filtering by user is the reliable way, but to keep this
-  // simple we ask Slack for the "im" channel via conversations.open — opening
-  // a DM with yourself returns the same self-DM channel id every time.
-  const openRes = await slack.call('conversations.open', { users: auth.userId });
-  const channelId = openRes.channel.id;
+  // Find your self-DM channel — the same one every time, since it's tied to your own user id.
+  const channelId = await slack.findSelfDmChannel(auth.userId);
 
   const since = Math.floor((Date.now() - 12 * 60 * 60 * 1000) / 1000); // look back 12h
   const messages = await slack.getConversationHistory(channelId, since);

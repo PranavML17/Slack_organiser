@@ -47,4 +47,20 @@ async function getUserInfo(userId) {
   return data.user;
 }
 
-module.exports = { call, searchMentions, getThreadReplies, getConversationHistory, getUserInfo };
+// Finds the user's self-DM channel without needing im:write (conversations.open
+// requires that scope; listing existing conversations does not). In Slack, a
+// self-DM's `user` field equals the authed user's own id, which is how we spot it.
+async function findSelfDmChannel(userId) {
+  const data = await call('conversations.list', { types: 'im', limit: 200 });
+  const channels = data.channels || [];
+  const selfDm = channels.find(c => c.user === userId);
+  if (!selfDm) {
+    throw new Error(
+      'Could not find your self-DM channel. Open a DM with yourself in Slack ' +
+      '(search your own name in Slack, click it, send any message) and try again.'
+    );
+  }
+  return selfDm.id;
+}
+
+module.exports = { call, searchMentions, getThreadReplies, getConversationHistory, getUserInfo, findSelfDmChannel };

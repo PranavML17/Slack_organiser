@@ -76,7 +76,6 @@ git push -u origin main
    ```
    SLACK_CLIENT_ID=<from Part 1>
    SLACK_CLIENT_SECRET=<from Part 1>
-   SLACK_SIGNING_SECRET=<from Slack app's Basic Information page>
    SLACK_REDIRECT_URI=https://placeholder.up.railway.app/slack/oauth/callback
    GOOGLE_SERVICE_ACCOUNT_JSON=<paste the whole JSON key from Part 2, step 8>
    GOOGLE_SHEET_ID=<from Part 2, step 7>

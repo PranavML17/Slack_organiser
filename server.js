@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const path = require('path');
 
 const store = require('./src/store');
+const slack = require('./src/slackClient');
 const { runTaskSync } = require('./src/taskSync');
 const { runMentionScan } = require('./src/mentionScan');
 const scheduler = require('./src/scheduler');
@@ -25,6 +26,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     connected: !!auth,
     slackUserId: auth ? auth.userId : null,
+    slackUserName: auth ? auth.userName : null,
     teamName: auth ? auth.teamName : null
   });
 });
@@ -78,6 +80,23 @@ app.get('/slack/oauth/callback', async (req, res) => {
       teamId: data.team && data.team.id,
       teamName: data.team && data.team.name
     });
+
+    // Best-effort: look up the real display name so the status page doesn't
+    // just show a raw user ID. Not critical — if this fails, everything
+    // still works, it just falls back to the ID.
+    try {
+      const info = await slack.getUserInfo(userId);
+      store.saveSlackAuth({
+        userToken,
+        userId,
+        teamId: data.team && data.team.id,
+        teamName: data.team && data.team.name,
+        userName: info.real_name || info.name || null
+      });
+    } catch (e) {
+      console.error('Could not fetch display name (non-fatal):', e.message);
+    }
+
     res.redirect('/?connected=1');
   } catch (e) {
     res.status(500).send(`OAuth exchange failed: ${e.message}`);
