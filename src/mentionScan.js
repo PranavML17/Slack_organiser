@@ -7,7 +7,7 @@ const MENTIONS_TAB = 'Mention Counts';
 const MENTIONS_HEADER = ['Date', 'Mentions'];
 
 const MENTIONS_DETAIL_TAB = 'Mentions';
-const MENTIONS_DETAIL_HEADER = ['Date', 'Who tagged', 'Task', 'AI Summarized', 'Channel', 'Permalink'];
+const MENTIONS_DETAIL_HEADER = ['Date', 'Who tagged', 'Task', 'Priority', 'AI Summarized', 'Channel', 'Permalink'];
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -75,14 +75,16 @@ async function logMentionDetail(match) {
     taggerName = info.real_name || info.name || match.user;
   } catch (e) { /* fall back to raw id */ }
 
-  const summarized = await summarize.summarizeAsTask(match.text);
-  const taskText = summarized || match.text || '';
-  const aiSummarized = summarized ? 'yes' : 'no';
+  const analysis = await summarize.analyzeMention(match.text);
+  const taskText = (analysis && analysis.task) || match.text || '';
+  const priority = (analysis && analysis.priority) || '';
+  const aiSummarized = analysis ? 'yes' : 'no';
 
   await sheets.appendRow(MENTIONS_DETAIL_TAB, [
     todayISO(),
     taggerName,
     taskText,
+    priority,
     aiSummarized,
     (match.channel && match.channel.name) || (match.channel && match.channel.id) || '',
     match.permalink || ''
