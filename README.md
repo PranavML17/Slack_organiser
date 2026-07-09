@@ -4,14 +4,18 @@ Reads your "Task to do today:" self-message every morning, counts how many
 messages mention you each day, and drops the raw transcript into a new sheet
 tab whenever one of those mentions is part of a thread.
 
-No AI/LLM involved anywhere in this — everything is direct Slack/Sheets API
-calls. If you want actual generated summaries instead of raw transcripts,
-that's a small, isolated addition (one function call inside
-`src/mentionScan.js`), not a rearchitecture.
+No AI/LLM is required for this to work — everything core is direct Slack/Sheets
+API calls. There's one optional AI feature: if you set `GEMINI_API_KEY`, the
+"Task" column in the `Mentions` tab gets rewritten into a short, clean task
+description via Gemini 3.1 Flash-Lite instead of showing the raw Slack message
+verbatim. Leave that key blank and you get the raw text — nothing else changes,
+and nothing else depends on it.
 
-Everything writes to **one Google Sheet**, across three kinds of tabs:
-- `Tasks` — one row per task, dated
+Everything writes to **one Google Sheet**, across four kinds of tabs:
+- `Tasks` — one row per task, dated, from your own "Task to do today" message
 - `Mention Counts` — one row per day, running total of @mentions
+- `Mentions` — one row per mention: who tagged you, the task/message (raw or
+  AI-cleaned, see above), channel, permalink
 - `Thread_<date>_<channel>_<id>` — a new tab per thread, with the full
   back-and-forth (speaker + message), created whenever a mention turns out
   to be part of a thread

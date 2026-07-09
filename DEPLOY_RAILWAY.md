@@ -82,7 +82,7 @@ git push -u origin main
    SESSION_SECRET=<any random string>
    DATA_DIR=/data
    PORT=3000
-   TASK_SYNC_CRON=*/15 5-11 * * *
+   TASK_SYNC_CRON=*/15 5-18 * * *
    MENTION_SCAN_CRON=0 * * * *
    ```
 

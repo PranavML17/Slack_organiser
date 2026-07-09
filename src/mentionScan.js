@@ -1,9 +1,13 @@
 const slack = require('./slackClient');
 const sheets = require('./sheets');
 const store = require('./store');
+const summarize = require('./summarize');
 
 const MENTIONS_TAB = 'Mention Counts';
 const MENTIONS_HEADER = ['Date', 'Mentions'];
+
+const MENTIONS_DETAIL_TAB = 'Mentions';
+const MENTIONS_DETAIL_HEADER = ['Date', 'Who tagged', 'Task', 'Channel', 'Permalink'];
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -58,6 +62,25 @@ async function logThreadTranscript(match) {
   store.markThreadProcessed(threadTs);
 }
 
+async function logMentionDetail(match) {
+  let taggerName = match.user;
+  try {
+    const info = await slack.getUserInfo(match.user);
+    taggerName = info.real_name || info.name || match.user;
+  } catch (e) { /* fall back to raw id */ }
+
+  const summarized = await summarize.summarizeAsTask(match.text);
+  const taskText = summarized || match.text || '';
+
+  await sheets.appendRow(MENTIONS_DETAIL_TAB, [
+    todayISO(),
+    taggerName,
+    taskText,
+    (match.channel && match.channel.name) || (match.channel && match.channel.id) || '',
+    match.permalink || ''
+  ]);
+}
+
 async function runMentionScan() {
   const auth = store.getSlackAuth();
   if (!auth) return { skipped: true, reason: 'slack not connected' };
@@ -66,6 +89,7 @@ async function runMentionScan() {
   const matches = await slack.searchMentions(auth.userId, today);
 
   await sheets.ensureTab(MENTIONS_TAB, MENTIONS_HEADER);
+  await sheets.ensureTab(MENTIONS_DETAIL_TAB, MENTIONS_DETAIL_HEADER);
 
   let newMentions = 0;
   let threadsLogged = 0;
@@ -74,6 +98,8 @@ async function runMentionScan() {
     if (store.hasProcessedMessage(match.ts)) continue;
     store.markMessageProcessed(match.ts);
     newMentions += 1;
+
+    await logMentionDetail(match);
 
     if (await isThread(match)) {
       await logThreadTranscript(match);
