@@ -1,0 +1,20 @@
+{
+  "name": "daybook-web",
+  "version": "1.0.0",
+  "description": "Slack -> Google Sheets daily task log + mention tracker + thread summarizer",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.7.2",
+    "googleapis": "^140.0.1",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.5",
+    "lowdb": "^1.0.0",
+    "nanoid": "^3.3.7"
+  }
+}
