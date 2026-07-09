@@ -26,6 +26,9 @@ async function call(method, params, tokenOverride) {
 }
 
 // Search for messages mentioning the given user id, after a given date (YYYY-MM-DD).
+// NOTE: Slack's `after:` search modifier is exclusive of that date itself —
+// after:2026-07-09 means "from 2026-07-10 onward," not including the 9th.
+// Callers wanting to include "today" must pass yesterday's date here.
 async function searchMentions(userId, afterDate) {
   const query = `<@${userId}> after:${afterDate}`;
   const data = await call('search.messages', { query, sort: 'timestamp', sort_dir: 'desc', count: 100 });

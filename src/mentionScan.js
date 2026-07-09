@@ -13,6 +13,12 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function yesterdayISO() {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function slugForThread(channelName, ts) {
   const datePart = new Date(Number(ts.split('.')[0]) * 1000).toISOString().slice(0, 10);
   const shortTs = ts.replace('.', '').slice(-6);
@@ -88,7 +94,7 @@ async function runMentionScan() {
   if (!auth) return { skipped: true, reason: 'slack not connected' };
 
   const today = todayISO();
-  const matches = await slack.searchMentions(auth.userId, today);
+  const matches = await slack.searchMentions(auth.userId, yesterdayISO());
 
   await sheets.ensureTab(MENTIONS_TAB, MENTIONS_HEADER);
   await sheets.ensureTab(MENTIONS_DETAIL_TAB, MENTIONS_DETAIL_HEADER);
