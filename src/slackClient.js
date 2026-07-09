@@ -14,7 +14,7 @@ async function call(method, params, tokenOverride) {
   const auth = store.getSlackAuth();
   const token = tokenOverride || (auth && auth.userToken);
   if (!token) throw new Error('Slack is not connected yet — visit /connect/slack first.');
-  const isGet = ['conversations.history', 'conversations.replies', 'search.messages', 'users.info']
+  const isGet = ['conversations.history', 'conversations.replies', 'search.messages', 'users.info', 'conversations.list']
     .includes(method);
   const res = isGet
     ? await client(token).get(`/${method}`, { params })
@@ -51,16 +51,21 @@ async function getUserInfo(userId) {
 // requires that scope; listing existing conversations does not). In Slack, a
 // self-DM's `user` field equals the authed user's own id, which is how we spot it.
 async function findSelfDmChannel(userId) {
-  const data = await call('conversations.list', { types: 'im', limit: 200 });
-  const channels = data.channels || [];
-  const selfDm = channels.find(c => c.user === userId);
-  if (!selfDm) {
-    throw new Error(
-      'Could not find your self-DM channel. Open a DM with yourself in Slack ' +
-      '(search your own name in Slack, click it, send any message) and try again.'
-    );
-  }
-  return selfDm.id;
+  let cursor;
+  let checked = 0;
+  do {
+    const data = await call('conversations.list', { types: 'im', limit: 200, cursor });
+    const channels = data.channels || [];
+    checked += channels.length;
+    const selfDm = channels.find(c => c.user === userId);
+    if (selfDm) return selfDm.id;
+    cursor = data.response_metadata && data.response_metadata.next_cursor;
+  } while (cursor);
+
+  throw new Error(
+    `Could not find your self-DM channel among ${checked} DM channel(s) checked. ` +
+    'Open a DM with yourself in Slack (search your own name in Slack, click it, send any message) and try again.'
+  );
 }
 
 module.exports = { call, searchMentions, getThreadReplies, getConversationHistory, getUserInfo, findSelfDmChannel };
