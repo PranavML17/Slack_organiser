@@ -55,7 +55,7 @@ async function ensureTab(title, headerRow) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID(),
       range: `${title}!A1:${colLetter(headerRow.length)}1`,
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       requestBody: { values: [headerRow] }
     });
   }
@@ -66,7 +66,7 @@ async function appendRow(tabName, row) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID(),
     range: `${tabName}!A1`,
-    valueInputOption: 'USER_ENTERED',
+    valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] }
   });
@@ -90,7 +90,7 @@ async function upsertRowByFirstColumn(tabName, keyValue, row) {
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID(),
     range: `${tabName}!A${sheetRowNumber}`,
-    valueInputOption: 'USER_ENTERED',
+    valueInputOption: 'RAW',
     requestBody: { values: [row] }
   });
 }
@@ -114,7 +114,7 @@ async function createThreadTranscriptTab(baseName, contentRows) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID(),
     range: `${title}!A1`,
-    valueInputOption: 'USER_ENTERED',
+    valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: contentRows }
   });
