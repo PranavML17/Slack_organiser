@@ -56,31 +56,25 @@ function formatTranscript(withNames, anchorTs) {
   }).join('\n');
 }
 
-// Builds AI context from two sources merged together: recent channel history
-// (catches ordinary back-and-forth that was never a formal Slack thread —
-// separate posts days apart, referencing the same topic) and, if this
-// mention is also part of a real thread, the full thread replies (which
-// don't show up in channel history at all once someone's used "reply in
-// thread"). Deduped by ts and sorted chronologically so nothing appears twice.
-// Kept smaller than an earlier version (was 20) — a busy, multi-topic channel
-// can pull in unrelated conversations at a wide window, and the anchor marker
-// below only helps the model pick the right message, not the right *topic*
-// if several genuinely unrelated threads are jumbled into the same window.
+// Context source depends entirely on whether this mention is part of a real
+// Slack thread:
+//  - If it IS a thread: use ONLY that thread's replies. Mixing in channel
+//    history here was the actual bug — a busy channel's unrelated messages
+//    would ride along even with the anchor marker, because the marker only
+//    tells the model which LINE is the mention, not that the surrounding
+//    noise belongs to a different topic entirely.
+//  - If it's NOT a thread: fall back to recent channel history, which is
+//    what catches ordinary sequential posts that were never formally
+//    threaded (separate messages days apart, same topic, no thread_ts).
 const CHANNEL_CONTEXT_WINDOW = 10;
 
 async function buildContext(match, threadTs, inThread) {
-  const history = await slack.getRecentChannelHistory(match.channel.id, match.ts, CHANNEL_CONTEXT_WINDOW);
-  const byTs = new Map(history.map(m => [m.ts, m]));
+  const rawMessages = inThread
+    ? await slack.getThreadReplies(match.channel.id, threadTs)
+    : await slack.getRecentChannelHistory(match.channel.id, match.ts, CHANNEL_CONTEXT_WINDOW);
 
-  let threadOnly = null;
-  if (inThread) {
-    threadOnly = await slack.getThreadReplies(match.channel.id, threadTs);
-    threadOnly.forEach(r => byTs.set(r.ts, r));
-  }
-
-  const merged = [...byTs.values()].sort((a, b) => Number(a.ts) - Number(b.ts));
-  const withNames = await getNamedMessages(merged);
-  const threadOnlyWithNames = threadOnly ? await getNamedMessages(threadOnly) : null;
+  const withNames = await getNamedMessages(rawMessages);
+  const threadOnlyWithNames = inThread ? withNames : null;
 
   return { contextText: formatTranscript(withNames, match.ts), threadOnlyWithNames };
 }
