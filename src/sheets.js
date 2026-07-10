@@ -27,17 +27,37 @@ function getSheets() {
 
 const SHEET_ID = () => process.env.GOOGLE_SHEET_ID;
 
+function colLetter(n) {
+  let s = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
 async function ensureTab(title, headerRow) {
   const sheets = getSheets();
   const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID() });
   const exists = meta.data.sheets.some(s => s.properties.title === title);
-  if (exists) return;
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: SHEET_ID(),
-    requestBody: { requests: [{ addSheet: { properties: { title } } }] }
-  });
+  if (!exists) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID(),
+      requestBody: { requests: [{ addSheet: { properties: { title } } }] }
+    });
+  }
+  // Always re-sync the header row (row 1) to whatever's currently expected —
+  // not just at creation. This is what makes headers self-heal after a
+  // column gets added/renamed in code, instead of needing a manual fix in
+  // the Sheet every time the schema changes.
   if (headerRow) {
-    await appendRow(title, headerRow);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID(),
+      range: `${title}!A1:${colLetter(headerRow.length)}1`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [headerRow] }
+    });
   }
 }
 

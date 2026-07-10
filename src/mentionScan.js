@@ -36,10 +36,11 @@ async function isThread(match) {
   }
 }
 
-async function logThreadTranscript(match) {
-  const threadTs = match.thread_ts || match.ts;
-  if (store.hasProcessedThread(threadTs)) return;
-
+// Fetches a thread's replies once and resolves display names once, so both
+// the transcript tab and the AI summary can reuse the same data instead of
+// each re-fetching (and instead of the AI only ever seeing the isolated
+// @mention line with no surrounding context).
+async function getThreadWithNames(match, threadTs) {
   const replies = await slack.getThreadReplies(match.channel.id, threadTs);
   const withNames = await Promise.all(
     replies.map(async r => {
@@ -51,7 +52,15 @@ async function logThreadTranscript(match) {
       return { userLabel: label, text: r.text };
     })
   );
+  return withNames;
+}
 
+function formatTranscript(withNames) {
+  return withNames.map(m => `${m.userLabel}: ${m.text}`).join('\n');
+}
+
+async function writeThreadTranscriptTab(match, threadTs, withNames) {
+  if (store.hasProcessedThread(threadTs)) return;
   const participants = [...new Set(withNames.map(m => m.userLabel))];
   const tabName = slugForThread(match.channel.name, threadTs);
   await sheets.createThreadTranscriptTab(tabName, [
@@ -64,18 +73,17 @@ async function logThreadTranscript(match) {
     ['Speaker', 'Message'],
     ...withNames.map(m => [m.userLabel, m.text])
   ]);
-
   store.markThreadProcessed(threadTs);
 }
 
-async function logMentionDetail(match) {
+async function logMentionDetail(match, contextText) {
   let taggerName = match.user;
   try {
     const info = await slack.getUserInfo(match.user);
     taggerName = info.real_name || info.name || match.user;
   } catch (e) { /* fall back to raw id */ }
 
-  const analysis = await summarize.analyzeMention(match.text);
+  const analysis = await summarize.analyzeMention(contextText);
   const taskText = (analysis && analysis.task) || match.text || '';
   const priority = (analysis && analysis.priority) || '';
   const aiSummarized = analysis ? 'yes' : 'no';
@@ -109,12 +117,21 @@ async function runMentionScan() {
     store.markMessageProcessed(match.ts);
     newMentions += 1;
 
-    await logMentionDetail(match);
+    const threadTs = match.thread_ts || match.ts;
+    const inThread = await isThread(match);
 
-    if (await isThread(match)) {
-      await logThreadTranscript(match);
+    // Default: just the single message. Only upgraded to the full thread
+    // transcript below if this mention actually turned out to be part of one.
+    let contextText = match.text;
+
+    if (inThread) {
+      const withNames = await getThreadWithNames(match, threadTs);
+      contextText = formatTranscript(withNames);
+      await writeThreadTranscriptTab(match, threadTs, withNames);
       threadsLogged += 1;
     }
+
+    await logMentionDetail(match, contextText);
   }
 
   const total = store.incrementMentionCount(today, newMentions);

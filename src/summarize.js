@@ -24,16 +24,20 @@ async function analyzeMention(rawText) {
   if (!rawText || !rawText.trim()) return null;
 
   const prompt =
-    'Analyze this Slack message that mentioned/tagged someone. Two things:\n' +
-    '1. task — rewrite it as a short, clear task description (max 12 words). ' +
-    'If it is not actually a request, tighten it into a short neutral summary instead.\n' +
-    '2. priority — based on the TONE and urgency of the message (not just the words), classify as:\n' +
+    'Below is either a single Slack message, or a full thread transcript (multiple ' +
+    'speakers, one per line as "Name: message") that mentioned/tagged someone. ' +
+    'Read ALL of it for context — if it is a thread, the actual ask is often clarified ' +
+    'or changed by later replies, not just the line that contains the @mention. Two things:\n' +
+    '1. task — considering the full context, write ONE short, clear line describing what is ' +
+    'actually being asked or expected (max 12 words). If it is not actually a request, ' +
+    'tighten it into a short neutral summary instead.\n' +
+    '2. priority — based on the TONE and urgency of the whole conversation (not just the words), classify as:\n' +
     '   High: urgent ask, explicit deadline/urgency language ("ASAP", "urgent", "by EOD", ' +
     'blocking someone, repeated follow-up), or clearly expects a fast response.\n' +
     '   Medium: a real request or something expected of the person, but no urgency signal.\n' +
     '   Low: a minor or optional ask, something that can clearly wait.\n' +
     '   None: not actually a request or expectation at all — praise, FYI, casual chat, no action needed.\n\n' +
-    `Message: ${rawText}`;
+    `Content:\n${rawText}`;
 
   try {
     const res = await axios.post(
