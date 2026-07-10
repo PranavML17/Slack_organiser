@@ -49,8 +49,11 @@ async function getNamedMessages(rawMessages) {
   );
 }
 
-function formatTranscript(withNames) {
-  return withNames.map(m => `${m.userLabel}: ${m.text}`).join('\n');
+function formatTranscript(withNames, anchorTs) {
+  return withNames.map(m => {
+    const prefix = m.ts === anchorTs ? '>>> [THIS MESSAGE TAGGED THE PERSON] ' : '';
+    return `${prefix}${m.userLabel}: ${m.text}`;
+  }).join('\n');
 }
 
 // Builds AI context from two sources merged together: recent channel history
@@ -59,7 +62,11 @@ function formatTranscript(withNames) {
 // mention is also part of a real thread, the full thread replies (which
 // don't show up in channel history at all once someone's used "reply in
 // thread"). Deduped by ts and sorted chronologically so nothing appears twice.
-const CHANNEL_CONTEXT_WINDOW = 20;
+// Kept smaller than an earlier version (was 20) — a busy, multi-topic channel
+// can pull in unrelated conversations at a wide window, and the anchor marker
+// below only helps the model pick the right message, not the right *topic*
+// if several genuinely unrelated threads are jumbled into the same window.
+const CHANNEL_CONTEXT_WINDOW = 10;
 
 async function buildContext(match, threadTs, inThread) {
   const history = await slack.getRecentChannelHistory(match.channel.id, match.ts, CHANNEL_CONTEXT_WINDOW);
@@ -75,7 +82,7 @@ async function buildContext(match, threadTs, inThread) {
   const withNames = await getNamedMessages(merged);
   const threadOnlyWithNames = threadOnly ? await getNamedMessages(threadOnly) : null;
 
-  return { contextText: formatTranscript(withNames), threadOnlyWithNames };
+  return { contextText: formatTranscript(withNames, match.ts), threadOnlyWithNames };
 }
 
 async function writeThreadTranscriptTab(match, threadTs, withNames) {
