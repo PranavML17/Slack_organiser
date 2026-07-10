@@ -36,27 +36,46 @@ async function isThread(match) {
   }
 }
 
-// Fetches a thread's replies once and resolves display names once, so both
-// the transcript tab and the AI summary can reuse the same data instead of
-// each re-fetching (and instead of the AI only ever seeing the isolated
-// @mention line with no surrounding context).
-async function getThreadWithNames(match, threadTs) {
-  const replies = await slack.getThreadReplies(match.channel.id, threadTs);
-  const withNames = await Promise.all(
-    replies.map(async r => {
+async function getNamedMessages(rawMessages) {
+  return Promise.all(
+    rawMessages.map(async r => {
       let label = r.user;
       try {
         const info = await slack.getUserInfo(r.user);
         label = info.real_name || info.name || r.user;
       } catch (e) { /* fall back to raw id */ }
-      return { userLabel: label, text: r.text };
+      return { ts: r.ts, userLabel: label, text: r.text };
     })
   );
-  return withNames;
 }
 
 function formatTranscript(withNames) {
   return withNames.map(m => `${m.userLabel}: ${m.text}`).join('\n');
+}
+
+// Builds AI context from two sources merged together: recent channel history
+// (catches ordinary back-and-forth that was never a formal Slack thread —
+// separate posts days apart, referencing the same topic) and, if this
+// mention is also part of a real thread, the full thread replies (which
+// don't show up in channel history at all once someone's used "reply in
+// thread"). Deduped by ts and sorted chronologically so nothing appears twice.
+const CHANNEL_CONTEXT_WINDOW = 20;
+
+async function buildContext(match, threadTs, inThread) {
+  const history = await slack.getRecentChannelHistory(match.channel.id, match.ts, CHANNEL_CONTEXT_WINDOW);
+  const byTs = new Map(history.map(m => [m.ts, m]));
+
+  let threadOnly = null;
+  if (inThread) {
+    threadOnly = await slack.getThreadReplies(match.channel.id, threadTs);
+    threadOnly.forEach(r => byTs.set(r.ts, r));
+  }
+
+  const merged = [...byTs.values()].sort((a, b) => Number(a.ts) - Number(b.ts));
+  const withNames = await getNamedMessages(merged);
+  const threadOnlyWithNames = threadOnly ? await getNamedMessages(threadOnly) : null;
+
+  return { contextText: formatTranscript(withNames), threadOnlyWithNames };
 }
 
 async function writeThreadTranscriptTab(match, threadTs, withNames) {
@@ -120,14 +139,10 @@ async function runMentionScan() {
     const threadTs = match.thread_ts || match.ts;
     const inThread = await isThread(match);
 
-    // Default: just the single message. Only upgraded to the full thread
-    // transcript below if this mention actually turned out to be part of one.
-    let contextText = match.text;
+    const { contextText, threadOnlyWithNames } = await buildContext(match, threadTs, inThread);
 
     if (inThread) {
-      const withNames = await getThreadWithNames(match, threadTs);
-      contextText = formatTranscript(withNames);
-      await writeThreadTranscriptTab(match, threadTs, withNames);
+      await writeThreadTranscriptTab(match, threadTs, threadOnlyWithNames);
       threadsLogged += 1;
     }
 

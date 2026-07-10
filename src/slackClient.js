@@ -71,4 +71,10 @@ async function findSelfDmChannel(userId) {
   );
 }
 
-module.exports = { call, searchMentions, getThreadReplies, getConversationHistory, getUserInfo, findSelfDmChannel };
+async function getRecentChannelHistory(channel, latestTs, limit) {
+  const data = await call('conversations.history', { channel, latest: latestTs, limit, inclusive: true });
+  // Slack returns newest-first; reverse to chronological order for a readable transcript.
+  return (data.messages || []).slice().reverse();
+}
+
+module.exports = { call, searchMentions, getThreadReplies, getConversationHistory, getUserInfo, findSelfDmChannel, getRecentChannelHistory };
